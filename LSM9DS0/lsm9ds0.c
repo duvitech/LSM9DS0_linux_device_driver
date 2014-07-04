@@ -30,11 +30,13 @@
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 
-#include "lsm9ds0.H"
+#include "lsm9ds0.h
 
 
 struct LSM9DS0_device {
         struct i2c_client *client;
+        
+        struct mutex lock;
         /* TODO */
 };
 
@@ -43,15 +45,28 @@ static int __devinit LSM9DS0_i2c_probe(struct i2c_client *client,
                 const struct i2c_device_id *id)
 {
         struct LSM9DS0_device *dev;
-		struct device *dev = &client->dev;
+		//struct device *dev = &client->dev;
         int ret;
 
+#if defined SMBUS_COMPATIBLE
         if (!i2c_check_functionality(client->adapter,
                 I2C_FUNC_SMBUS_BYTE_DATA | I2C_FUNC_SMBUS_WORD_DATA |
                 I2C_FUNC_SMBUS_I2C_BLOCK)) {
-                printk(KERN_ERR "%s: needed i2c functionality is not supported\n", __func__);
+                printk(KERN_ERR "%s: CLIENT NOT SMB-I2C CAPABLE\n", __func__);
                 return -ENODEV;
         }
+#endif
+
+#if defined I2C_COMPATIBLE
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		dev_err(&client->dev, "client not i2c capable\n");
+		return -ENODEV;
+	}
+	
+#endif
+        
+        
         
         dev = kzalloc(sizeof(struct LSM9DS0_device), GFP_KERNEL);
         if (dev == NULL) {
@@ -59,12 +74,30 @@ static int __devinit LSM9DS0_i2c_probe(struct i2c_client *client,
                 return -ENOMEM;
         }
 
+
+	mutex_init(&dev->lock);
+	mutex_lock(&dev->lock);
+	
+	
+
         dev->client = client;
         i2c_set_clientdata(client, dev);
         
+        // use defaults to initialize the sensor, not using platform data */
+        
+        // enable all axes //
+        // do initial state, further can be set up by the user depending upon his requirement//
+        
+        
+        
         /* TODO: do something */
 
-		dev_info(dev, "LSM9DS0 client created\n");
+
+
+	mutex_unlock(&dev->lock);
+	dev_info(&client->dev, "LSM9DS0 client probing completed\n");
+	
+	
         return 0;
 }
 
@@ -82,6 +115,7 @@ static int LSM9DS0_i2c_suspend(struct i2c_client *client, pm_messaget_t msg)
 {
         struct LSM9DS0_device *dev = i2c_get_clientdata(client);
         
+        /* TO DO */
         return 0;
 }
 
@@ -89,6 +123,7 @@ static int LSM9DS0_i2c_resume(struct i2c_client *client)
 {
         struct LSM9DS0_device *dev = i2c_get_clientdata(client);
 
+	/* TO DO */
         return 0;
 }
 
@@ -96,7 +131,7 @@ static int LSM9DS0_i2c_resume(struct i2c_client *client)
 
 static const struct i2c_device_id LSM9DS0_i2c_id[] = {
         { "LSM9DS0_i2c_client", 0 },
-        { }
+        { },
 };
 
 
@@ -108,6 +143,7 @@ static struct i2c_driver LSM9DS0_i2c_driver = {
         .suspend  = LSM9DS0_i2c_suspend,
         .resume   = LSM9DS0_i2c_resume,
         .driver   = {
+        	.owner = THIS_MODULE,
                 .name = "LSM9DS0_i2c_client",
         },
 };
